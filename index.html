@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cubs Today?</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: #0e3386;
+            color: #fff;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+
+        .card {
+            background: #cc3433;
+            border-radius: 1rem;
+            padding: 2.5rem 2rem;
+            max-width: 480px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+        }
+
+        .logo {
+            font-size: 4rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .date {
+            font-size: 0.9rem;
+            opacity: 0.8;
+            margin-bottom: 1.5rem;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+
+        .answer {
+            font-size: 2.5rem;
+            font-weight: 800;
+            line-height: 1.1;
+            margin-bottom: 1.5rem;
+        }
+
+        .answer.yes { color: #fff; }
+        .answer.no  { color: rgba(255,255,255,0.7); }
+
+        .game-details {
+            background: rgba(255,255,255,0.15);
+            border-radius: 0.6rem;
+            padding: 1rem;
+            text-align: left;
+            font-size: 0.95rem;
+            line-height: 1.8;
+        }
+
+        .game-details strong { color: #ffe066; }
+
+        .status-badge {
+            display: inline-block;
+            padding: 0.2em 0.7em;
+            border-radius: 99px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-left: 0.4em;
+            vertical-align: middle;
+        }
+        .badge-live    { background: #22c55e; color: #000; }
+        .badge-final   { background: rgba(255,255,255,0.3); color: #fff; }
+        .badge-preview { background: #ffe066; color: #000; }
+
+        .loading {
+            opacity: 0.7;
+            font-style: italic;
+            font-size: 1.1rem;
+        }
+
+        .error-msg {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+
+        footer {
+            margin-top: 1.5rem;
+            font-size: 0.75rem;
+            opacity: 0.55;
+        }
+
+        footer a {
+            color: inherit;
+            text-decoration: underline;
+        }
+
+        .tomorrow-section {
+            margin-top: 1.25rem;
+            border-top: 1px solid rgba(255,255,255,0.2);
+            padding-top: 1.25rem;
+        }
+
+        .tomorrow-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            opacity: 0.7;
+            margin-bottom: 0.5rem;
+        }
+
+        .tomorrow-details {
+            background: rgba(255,255,255,0.1);
+            border-radius: 0.6rem;
+            padding: 0.75rem 1rem;
+            text-align: left;
+            font-size: 0.9rem;
+            line-height: 1.8;
+        }
+
+        .tomorrow-details strong { color: #ffe066; }
+    </style>
+</head>
+<body>
+<div class="card">
+    <div class="logo">⚾</div>
+    <div class="date" id="date-label"></div>
+    <div class="answer loading" id="answer">Loading…</div>
+    <div id="details"></div>
+    <div id="tomorrow"></div>
+    <footer>Data: <a href="https://statsapi.mlb.com" target="_blank" rel="noopener">MLB Stats API</a></footer>
+</div>
+
+<script>
+    const CUBS_TEAM_ID = 112;
+
+    function todayCST() {
+        // Use America/Chicago so "today" matches Cubs schedule timezone
+        const now = new Date();
+        const parts = new Intl.DateTimeFormat("en-CA", {
+            timeZone: "America/Chicago",
+            year: "numeric", month: "2-digit", day: "2-digit"
+        }).formatToParts(now);
+        const p = {};
+        parts.forEach(x => p[x.type] = x.value);
+        return `${p.year}-${p.month}-${p.day}`;
+    }
+
+    function formatGameTime(isoString) {
+        if (!isoString) return "TBD";
+        const d = new Date(isoString);
+        return d.toLocaleTimeString("en-US", {
+            timeZone: "America/Chicago",
+            hour: "numeric",
+            minute: "2-digit",
+            timeZoneName: "short"
+        });
+    }
+
+    function statusBadge(abstractState, detailState) {
+        if (abstractState === "Live") {
+            return `<span class="status-badge badge-live">Live – ${detailState}</span>`;
+        }
+        if (abstractState === "Final") {
+            return `<span class="status-badge badge-final">Final</span>`;
+        }
+        return `<span class="status-badge badge-preview">Scheduled</span>`;
+    }
+
+    async function fetchGames(date) {
+        const url =
+            `https://statsapi.mlb.com/api/v1/schedule` +
+            `?sportId=1&teamId=${CUBS_TEAM_ID}&date=${date}` +
+            `&hydrate=team,venue,linescore`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+    }
+
+    function renderGame(game) {
+        const { teams, venue, gameDate, status, linescore } = game;
+        const home = teams.home.team.name;
+        const away = teams.away.team.name;
+        const isCubsHome = teams.home.team.id === CUBS_TEAM_ID;
+        const opponent = isCubsHome ? away : home;
+        const abstractState = status.abstractGameState;
+        const detailState = status.detailState;
+
+        let scoreInfo = "";
+        if (linescore && abstractState !== "Preview") {
+            const cr = linescore.teams;
+            const awayScore = cr.away?.runs ?? 0;
+            const homeScore = cr.home?.runs ?? 0;
+            const cubsScore  = isCubsHome ? homeScore : awayScore;
+            const oppScore   = isCubsHome ? awayScore : homeScore;
+            const inning = linescore.currentInningOrdinal || "";
+            const half   = linescore.inningHalf || "";
+            scoreInfo = `
+                <br><strong>Score:</strong> Cubs ${cubsScore}, ${opponent.replace(/^.*?(Cubs|.*?)$/, m => m)} ${oppScore}
+                ${inning ? `&nbsp;·&nbsp; ${half} ${inning}` : ""}
+            `;
+        }
+
+        document.getElementById("answer").className = "answer yes";
+        document.getElementById("answer").textContent = "Yes, they play today!";
+        document.getElementById("details").innerHTML = `
+            <div class="game-details">
+                <strong>Opponent:</strong> ${opponent}<br>
+                <strong>Where:</strong> ${isCubsHome ? venue.name : "at " + venue.name}<br>
+                <strong>First pitch:</strong> ${formatGameTime(gameDate)}
+                &nbsp;${statusBadge(abstractState, detailState)}
+                ${scoreInfo}
+            </div>
+        `;
+    }
+
+    function tomorrowCST() {
+        const now = new Date();
+        // Advance by one day in Chicago time by shifting the date string
+        const parts = new Intl.DateTimeFormat("en-CA", {
+            timeZone: "America/Chicago",
+            year: "numeric", month: "2-digit", day: "2-digit"
+        }).formatToParts(now);
+        const p = {};
+        parts.forEach(x => p[x.type] = x.value);
+        const d = new Date(`${p.year}-${p.month}-${p.day}T12:00:00`);
+        d.setDate(d.getDate() + 1);
+        return d.toISOString().slice(0, 10);
+    }
+
+    function renderTomorrow(games, tomorrowDate) {
+        const label = new Date(tomorrowDate + "T12:00:00").toLocaleDateString("en-US", {
+            weekday: "long", month: "long", day: "numeric"
+        });
+        let html = `<div class="tomorrow-section"><div class="tomorrow-label">Tomorrow — ${label}</div>`;
+
+        if (games.length === 0) {
+            html += `<div class="tomorrow-details" style="opacity:0.8;text-align:center;">No game tomorrow.</div>`;
+        } else {
+            const game = games[0];
+            const { teams, venue, gameDate } = game;
+            const isCubsHome = teams.home.team.id === CUBS_TEAM_ID;
+            const opponent = isCubsHome ? teams.away.team.name : teams.home.team.name;
+            html += `
+                <div class="tomorrow-details">
+                    <strong>Opponent:</strong> ${opponent}<br>
+                    <strong>Where:</strong> ${isCubsHome ? venue.name : "at " + venue.name}<br>
+                    <strong>First pitch:</strong> ${formatGameTime(gameDate)}
+                </div>`;
+        }
+
+        html += `</div>`;
+        document.getElementById("tomorrow").innerHTML = html;
+    }
+
+    function renderNoGame() {
+        document.getElementById("answer").className = "answer no";
+        document.getElementById("answer").textContent = "No game today.";
+        document.getElementById("details").innerHTML = `
+            <div class="game-details" style="text-align:center;opacity:0.8;">
+                The Cubs are off today. Check back tomorrow.
+            </div>
+        `;
+    }
+
+    async function init() {
+        const date = todayCST();
+        const tomorrow = tomorrowCST();
+
+        document.getElementById("date-label").textContent =
+            new Date(date + "T12:00:00").toLocaleDateString("en-US", {
+                weekday: "long", year: "numeric", month: "long", day: "numeric"
+            });
+
+        try {
+            // Fetch today and tomorrow in parallel
+            const [todayData, tomorrowData] = await Promise.all([
+                fetchGames(date),
+                fetchGames(tomorrow)
+            ]);
+
+            const todayGames = todayData.dates?.[0]?.games ?? [];
+            if (todayGames.length > 0) {
+                renderGame(todayGames[0]);
+            } else {
+                renderNoGame();
+            }
+
+            const tomorrowGames = tomorrowData.dates?.[0]?.games ?? [];
+            renderTomorrow(tomorrowGames, tomorrow);
+        } catch (err) {
+            document.getElementById("answer").className = "answer";
+            document.getElementById("answer").innerHTML =
+                `<span class="loading">Couldn't load schedule</span>`;
+            document.getElementById("details").innerHTML =
+                `<div class="game-details error-msg">Error: ${err.message}</div>`;
+        }
+    }
+
+    init();
+</script>
+</body>
+</html>
