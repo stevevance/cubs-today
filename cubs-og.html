@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cubs Today? — OG Image</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        html, body {
+            width: 1200px;
+            height: 630px;
+            overflow: hidden;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: #0e3386;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .card {
+            background: #cc3433;
+            border-radius: 1.5rem;
+            padding: 3rem 3.5rem 3.25rem;
+            width: 860px;
+            text-align: center;
+        }
+
+        .logo {
+            font-size: 6rem;
+            line-height: 1;
+            margin-bottom: 1rem;
+        }
+
+        .date {
+            font-size: 1.05rem;
+            color: rgba(255,220,210,0.85);
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            margin-bottom: 1.5rem;
+            font-weight: 500;
+        }
+
+        .headline {
+            font-size: 5.5rem;
+            font-weight: 800;
+            color: rgba(255,220,210,0.9);
+            line-height: 1;
+            margin-bottom: 2rem;
+        }
+
+        .tagline-box {
+            background: rgba(255,255,255,0.15);
+            border-radius: 0.75rem;
+            padding: 1.25rem 2rem;
+            font-size: 1.4rem;
+            color: #fff;
+            line-height: 1.5;
+        }
+
+        .site {
+            position: absolute;
+            bottom: 18px;
+            right: 28px;
+            font-size: 0.85rem;
+            color: rgba(255,255,255,0.35);
+            letter-spacing: 0.04em;
+        }
+    </style>
+</head>
+<body>
+<div class="card">
+    <div class="logo">⚾</div>
+    <div class="date" id="date-label">Thursday, May 1, 2026</div>
+    <div class="headline">Cubs Today?</div>
+    <div class="tagline-box">Is there a Chicago Cubs game today?</div>
+</div>
+<div class="site">chicagocityscape.com</div>
+
+<script>
+    document.getElementById("date-label").textContent =
+        new Date().toLocaleDateString("en-US", {
+            timeZone: "America/Chicago",
+            weekday: "long", month: "long", day: "numeric", year: "numeric"
+        }).toUpperCase();
+</script>
+</body>
+</html>
